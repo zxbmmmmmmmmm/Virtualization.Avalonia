@@ -125,11 +125,11 @@ public partial class ItemsRepeater : Panel
 
     internal Control? SuggestedAnchor => _viewportManager.SuggestedAnchor;
 
-    internal Point LayoutOrigin
-    {
-        get => _layoutOrigin;
-        set => _layoutOrigin = value;
-    }
+    /// <remarks>
+    /// The value of _layoutOrigin is expected to be set by the layout
+    /// when it gets measured. It should not be used outside of measure.
+    /// </remarks>
+    internal Point LayoutOrigin { get; set; }
 
     internal IElementFactory? ItemTemplateShim { get; private set; }
 

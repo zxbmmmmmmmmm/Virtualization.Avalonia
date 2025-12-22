@@ -9,78 +9,73 @@ using Avalonia.Controls.Templates;
 
 namespace Virtualization.Avalonia;
 
-public class RecyclingElementFactory : ElementFactory
-{
-    public RecyclingElementFactory()
-    {
-        Templates = new Dictionary<string, IDataTemplate>();
-    }
+//public class RecyclingElementFactory : ElementFactory
+//{
+//    public RecyclePool RecyclePool { get; set; }
 
-    public RecyclePool RecyclePool { get; set; }
+//    public IDictionary<string, IDataTemplate> Templates { get; set; } = new Dictionary<string, IDataTemplate>();
 
-    public IDictionary<string, IDataTemplate> Templates { get; set; }
+//    public event EventHandler<RecyclingElementFactory, SelectTemplateEventArgs> SelectTemplateKey;
 
-    public event EventHandler<RecyclingElementFactory, SelectTemplateEventArgs> SelectTemplateKey;
+//    protected virtual string OnSelectTemplateKeyCore(object dataContext, Control owner)
+//    {
+//        _args ??= new SelectTemplateEventArgs();
 
-    protected virtual string OnSelectTemplateKeyCore(object dataContext, Control owner)
-    {
-        _args ??= new SelectTemplateEventArgs();
+//        _args.TemplateKey = null;
+//        _args.DataContext = dataContext;
+//        _args.Owner = owner;
 
-        _args.TemplateKey = null;
-        _args.DataContext = dataContext;
-        _args.Owner = owner;
+//        SelectTemplateKey?.Invoke(this, _args);
 
-        SelectTemplateKey?.Invoke(this, _args);
+//        var templateKey = _args.TemplateKey;
+//        if (string.IsNullOrEmpty(templateKey))
+//            throw new InvalidOperationException("Please provide a valid template identifier in the handler for the SelectTemplateKey event.");
 
-        var templateKey = _args.TemplateKey;
-        if (string.IsNullOrEmpty(templateKey))
-            throw new InvalidOperationException("Please provide a valid template identifier in the handler for the SelectTemplateKey event.");
+//        return templateKey;
+//    }
 
-        return templateKey;
-    }
+//    protected override Control GetElementCore(ElementFactoryGetArgs args)
+//    {
+//        if (Templates is not { Count: not 0 })
+//            throw new InvalidOperationException("Templates property cannot be null or empty.");
 
-    protected override Control GetElementCore(ElementFactoryGetArgs args)
-    {
-        if (Templates == null || Templates.Count == 0)
-            throw new InvalidOperationException("Templates property cannot be null or empty.");
+//        var winrtOwner = args.Parent;
+//        var templateKey = Templates.Count == 1 ?
+//            Templates.First().Key :
+//            OnSelectTemplateKeyCore(args.Data, winrtOwner);
 
-        var winrtOwner = args.Parent;
-        var templateKey = Templates.Count == 1 ?
-            Templates.First().Key :
-            OnSelectTemplateKeyCore(args.Data, winrtOwner);
+//        if (string.IsNullOrEmpty(templateKey))
+//        {
+//            // Note: We could allow null/whitespace, which would work as long as
+//            // the recycle pool is not shared. in order to make this work in all cases
+//            // currently we validate that a valid template key is provided.
+//            throw new InvalidOperationException("Template key cannot be empty or null.");
+//        }
 
-        if (string.IsNullOrEmpty(templateKey))
-        {
-            // Note: We could allow null/whitespace, which would work as long as
-            // the recycle pool is not shared. in order to make this work in all cases
-            // currently we validate that a valid template key is provided.
-            throw new InvalidOperationException("Template key cannot be empty or null.");
-        }
+//        var element = RecyclePool.TryGetElement(templateKey, winrtOwner);
 
-        var element = RecyclePool.TryGetElement(templateKey, winrtOwner);
+//        if (element is null)
+//        {
+//            // No need to call HasKey if there is only one template.
+//            if (Templates.Count > 1 && !Templates.ContainsKey(templateKey))
+//                throw new InvalidOperationException(
+//                    $"No templates of key {templateKey} were found in the templates collection");
 
-        if (element == null)
-        {
-            // No need to call HasKey if there is only one template.
-            if (Templates.Count > 1 && !Templates.ContainsKey(templateKey))
-                throw new InvalidOperationException(
-                    $"No templates of key {templateKey} were found in the templates collection");
+//            var dataTemplate = Templates[templateKey];
+//            element = dataTemplate.Build(args.Data);
 
-            var dataTemplate = Templates[templateKey];
-            element = dataTemplate.Build(args.Data);
+//            RecyclePool.SetReuseKey(element, templateKey);
+//        }
 
-            RecyclePool.SetReuseKey(element, templateKey);
-        }
+//        return element;
+//    }
 
-        return element;
-    }
+//    protected override void RecycleElementCore(ElementFactoryRecycleArgs args)
+//    {
+//        var element = args.Element;
+//        var key = RecyclePool.GetReuseKey(element);
+//        RecyclePool.PutElement(element, key, args.Parent);
+//    }
 
-    protected override void RecycleElementCore(ElementFactoryRecycleArgs args)
-    {
-        var element = args.Element;
-        var key = RecyclePool.GetReuseKey(element);
-        RecyclePool.PutElement(element, key, args.Parent);
-    }
-
-    private SelectTemplateEventArgs _args;
-}
+//    private SelectTemplateEventArgs _args;
+//}

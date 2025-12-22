@@ -1,11 +1,8 @@
-using System;
-using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Diagnostics;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Interactivity;
-using Avalonia.Logging;
 using Avalonia.VisualTree;
 
 namespace Virtualization.Avalonia;
@@ -145,8 +142,8 @@ internal class ViewManager(ItemsRepeater ir)
 
             ir.ItemTemplateShim.RecycleElement(_elementFactoryRecycleArgs);
 
-            _elementFactoryRecycleArgs.Element = null;
-            _elementFactoryRecycleArgs.Parent = null;
+            _elementFactoryRecycleArgs.Element = null!;
+            _elementFactoryRecycleArgs.Parent = null!;
         }
         else
         {
@@ -642,7 +639,7 @@ internal class ViewManager(ItemsRepeater ir)
             finally
             {
                 args.Data = null;
-                args.Parent = null;
+                args.Parent = null!;
             }
         }
 
@@ -865,8 +862,8 @@ internal class ViewManager(ItemsRepeater ir)
     private Phaser _phaser = new(ir);
 
     // Cached generate/clear contexts to avoid cost of creation every time.
-    private readonly ElementFactoryGetArgs _elementFactoryGetArgs = new ElementFactoryGetArgs();
-    private readonly ElementFactoryRecycleArgs _elementFactoryRecycleArgs = new ElementFactoryRecycleArgs();
+    private readonly ElementFactoryGetArgs _elementFactoryGetArgs = new();
+    private readonly ElementFactoryRecycleArgs _elementFactoryRecycleArgs = new();
 
     // These are first/last indices requested by layout and not cleared yet.
     // These are also not truly first / last because they are a lower / upper bound on the known realized range.

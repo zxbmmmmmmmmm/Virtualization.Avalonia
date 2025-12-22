@@ -1,4 +1,4 @@
-﻿using Avalonia.Controls;
+using Avalonia.Controls;
 
 namespace Virtualization.Avalonia;
 
@@ -12,10 +12,10 @@ public class ElementFactoryRecycleArgs
     /// Gets or sets the <see cref="Control"/> object to recycle when calling
     /// <see cref="IElementFactory.RecycleElement(ElementFactoryRecycleArgs)"/>
     /// </summary>
-    public Control? Element { get; set; }
+    public Control Element { get; set; } = null!;
 
     /// <summary>
     /// Gets or sets a reference to the current parent <see cref="Control"/> of the element being recycled
     /// </summary>
-    public Control? Parent { get; set; }
+    public Panel Parent { get; set; } = null!;
 }

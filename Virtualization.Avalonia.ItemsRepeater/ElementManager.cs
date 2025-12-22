@@ -4,9 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using Avalonia;
 using Avalonia.Controls;
 using Virtualization.Avalonia.Layouts;
-#if DEBUG && REPEATER_TRACE
-using Avalonia.Logging;
-#endif
+
 
 namespace Virtualization.Avalonia;
 

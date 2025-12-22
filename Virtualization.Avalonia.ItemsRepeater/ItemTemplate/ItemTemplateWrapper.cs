@@ -1,87 +1,40 @@
-using System;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Controls.Templates;
 
 namespace Virtualization.Avalonia;
 
-public class ItemTemplateWrapper : IElementFactory
+public class ItemTemplateWrapper(IDataTemplate template) : IElementFactory
 {
-    public ItemTemplateWrapper(IDataTemplate template)
-    {
-        _dataTemplate = template;
-    }
-
-
-    public IDataTemplate Template
-    {
-        get => _dataTemplate;
-        set => _dataTemplate = value;
-    }
-
     public Control GetElement(ElementFactoryGetArgs args)
     {
-        var selectedTemplate = _dataTemplate ;
+        if (RecyclePool.TryGetPoolInstance(template) is { } recyclePool
+            && recyclePool.TryGetElement("", args.Parent) is { } e)
+            return e;
 
-        if (selectedTemplate == null)
-        {
-            // Still nullptr, fail with a reasonable message now.
-            throw new InvalidOperationException("Null encountered as data template. That is not a valid value for a data template, and can not be used.");
-        }
+        // no element was found in recycle pool, create a new element
+        // if Template returned null, so insert empty element to render nothing
+        var element = template.Build(args.Data) ?? new Rectangle();
 
-        var recyclePool = RecyclePool.GetPoolInstance(selectedTemplate);
-        Control element = null;
-
-        if (recyclePool != null)
-        {
-            // try to get an element from the recycle pool.
-            element = recyclePool.TryGetElement(string.Empty, args.Parent);
-        }
-
-        if (element == null)
-        {
-            // no element was found in recycle pool, create a new element
-            element = selectedTemplate.Build(args.Data);
-
-            // Template returned null, so insert empty element to render nothing
-            if (element == null)
-            {
-                var rectangle = new Rectangle();
-                element = rectangle;
-            }
-
-            // Associate template with element
-            element.SetValue(RecyclePool.OriginTemplateProperty, selectedTemplate);
-        }
+        // Associate template with element
+        element.SetValue(RecyclePool.OriginTemplateProperty, template);
 
         return element;
     }
 
     public void RecycleElement(ElementFactoryRecycleArgs args)
     {
-        var element = args.Element;
-        var selectedTemplate = _dataTemplate ??
-            element.GetValue(RecyclePool.OriginTemplateProperty);
-        var recyclePool = RecyclePool.GetPoolInstance(selectedTemplate);
-        if (recyclePool == null)
+        if (RecyclePool.TryGetPoolInstance(template) is not { } recyclePool)
         {
             // No Recycle pool in the template, create one.
             recyclePool = new RecyclePool();
-            RecyclePool.SetPoolInstance(selectedTemplate, recyclePool);
+            RecyclePool.SetPoolInstance(template, recyclePool);
         }
 
-        recyclePool.PutElement(args.Element, string.Empty, args.Parent);
+        recyclePool.PutElement(args.Element, "", args.Parent);
     }
 
-    bool IDataTemplate.Match(object data)
-    {
-        throw new NotImplementedException();
-    }
+    bool IDataTemplate.Match(object? data) => template.Match(data);
 
-    Control ITemplate<object, Control>.Build(object param)
-    {
-        throw new NotImplementedException();
-    }
-
-    private IDataTemplate _dataTemplate;
+    Control? ITemplate<object?, Control?>.Build(object? param) => template.Build(param);
 }

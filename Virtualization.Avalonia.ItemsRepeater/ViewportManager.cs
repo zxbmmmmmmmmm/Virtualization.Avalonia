@@ -1,10 +1,7 @@
-using System;
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
-using Avalonia.Logging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 
@@ -45,15 +42,14 @@ internal class ViewportManager(ItemsRepeater owner)
                 return anchor;
             if (_scroller?.CurrentAnchor is not { } child)
                 return null;
-            Control owner1 = owner;
             Control? suggestedAnchor = null;
             // We can't simply return anchorElement because, in case of nested Repeaters, it may not
             // be a direct child of ours, or even an indirect child. We need to walk up the tree starting
             // from anchorElement to figure out what child of ours (if any) to use as the suggested element.
             var parent = child.GetVisualParent();
-            while (parent != null)
+            while (parent is not null)
             {
-                if (parent == owner1)
+                if (parent == owner)
                 {
                     suggestedAnchor = child;
                     break;
@@ -72,7 +68,7 @@ internal class ViewportManager(ItemsRepeater owner)
     public Control? MadeAnchor { get; private set; }
 
     [MemberNotNullWhen(true, nameof(MadeAnchor))]
-    private bool HasScroller => _scroller != null;
+    private bool HasScroller => _scroller is not null;
         
     public Rect GetLayoutVisibleWindowDiscardAnchor()
     {
@@ -93,7 +89,7 @@ internal class ViewportManager(ItemsRepeater owner)
     {
         var visibleWindow = _visibleWindow;
 
-        if (MadeAnchor != null && _isAnchorOutsideRealizedRange)
+        if (MadeAnchor is not null && _isAnchorOutsideRealizedRange)
         {
             // The anchor is not necessarily laid out yet. Its position should default
             // to zero and the layout origin is expected to change once layout is done.
@@ -105,14 +101,13 @@ internal class ViewportManager(ItemsRepeater owner)
             // shifting the realization rect results in repeater, layout and scroller thinking that it needs to act upon StartBringIntoView.
             // We do NOT want that!
 
-            visibleWindow = new Rect(default, visibleWindow.Size);
+            visibleWindow = new Rect(visibleWindow.Size);
         }
         else if (HasScroller)
         {
-            visibleWindow = visibleWindow.WithX(
-                visibleWindow.X + _layoutExtent.X + _expectedViewportShift.X + _unshiftableShift.X)
-                .WithY(
-                visibleWindow.Y + _layoutExtent.Y + _expectedViewportShift.Y + _unshiftableShift.Y);
+            visibleWindow = visibleWindow
+                .WithX(visibleWindow.X + _layoutExtent.X + _expectedViewportShift.X + _unshiftableShift.X)
+                .WithY(visibleWindow.Y + _layoutExtent.Y + _expectedViewportShift.Y + _unshiftableShift.Y);
         }
 
         return visibleWindow;
@@ -127,8 +122,8 @@ internal class ViewportManager(ItemsRepeater owner)
             realizationWindow = new Rect(
                 realizationWindow.X - _horizontalCacheBufferPerSide,
                 realizationWindow.Y - _verticalCacheBufferPerSide,
-                realizationWindow.Width + _horizontalCacheBufferPerSide * 2,
-                realizationWindow.Height + _verticalCacheBufferPerSide * 2);
+                realizationWindow.Width + (_horizontalCacheBufferPerSide * 2),
+                realizationWindow.Height + (_verticalCacheBufferPerSide * 2));
         }
 
         return realizationWindow;
@@ -492,16 +487,14 @@ internal class ViewportManager(ItemsRepeater owner)
         _verticalCacheBufferPerSide = 0;
 
         if (!_managingViewportDisabled)
-        {
             // We need to start building the realization buffer again.
             RegisterCacheBuildWork();
-        }
     }
 
-    private void ValidateCacheLength(double cacheLength)
+    private static void ValidateCacheLength(double cacheLength)
     {
         if (cacheLength < 0 || double.IsInfinity(cacheLength) || double.IsNaN(cacheLength))
-            throw new Exception("The maximum cache length must be equal or superior to zero.");
+            throw new ArgumentException("The maximum cache length must be equal or superior to zero.");
     }
 
     private void RegisterCacheBuildWork()

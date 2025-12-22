@@ -1,4 +1,4 @@
-﻿using Avalonia.Controls;
+using Avalonia.Controls;
 
 namespace Virtualization.Avalonia;
 
@@ -18,7 +18,7 @@ public class ElementFactoryGetArgs
     /// Gets or sets the <see cref="Control"/> that is expected to be the parent of the realized element from
     /// <see cref="IElementFactory.GetElement(ElementFactoryGetArgs)"/>
     /// </summary>
-    public Control? Parent { get; set; }
+    public Panel Parent { get; set; } = null!;
 
     internal int Index { get; set; }
 }

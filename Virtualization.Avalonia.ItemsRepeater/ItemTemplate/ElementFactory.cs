@@ -1,4 +1,4 @@
-﻿using Avalonia.Controls;
+using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 
 namespace Virtualization.Avalonia;
@@ -11,14 +11,12 @@ public abstract class ElementFactory : IElementFactory
     /// <summary>
     /// Gets an element
     /// </summary>
-    public Control GetElement(ElementFactoryGetArgs args) =>
-        GetElementCore(args);
+    public Control GetElement(ElementFactoryGetArgs args) => GetElementCore(args);
 
     /// <summary>
     /// Recycles a specified element
     /// </summary>
-    public void RecycleElement(ElementFactoryRecycleArgs args) =>
-        RecycleElementCore(args);
+    public void RecycleElement(ElementFactoryRecycleArgs args) => RecycleElementCore(args);
 
     /// <summary>
     /// Gets an element
@@ -30,7 +28,7 @@ public abstract class ElementFactory : IElementFactory
     /// </summary>
     protected abstract void RecycleElementCore(ElementFactoryRecycleArgs args);
 
-    Control ITemplate<object, Control>.Build(object param) => null;
+    Control? ITemplate<object?, Control?>.Build(object? param) => null;
 
-    bool IDataTemplate.Match(object data) => false;
+    bool IDataTemplate.Match(object? data) => false;
 }

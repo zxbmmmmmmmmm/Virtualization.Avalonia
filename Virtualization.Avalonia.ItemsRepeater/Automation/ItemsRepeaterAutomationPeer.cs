@@ -1,18 +1,11 @@
-using System.Collections.Generic;
-using System.Linq;
 using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.VisualTree;
 
 namespace Virtualization.Avalonia;
 
-public class ItemsRepeaterAutomationPeer : ControlAutomationPeer
+public class ItemsRepeaterAutomationPeer(Control owner) : ControlAutomationPeer(owner)
 {
-    public ItemsRepeaterAutomationPeer(Control owner) 
-        : base(owner)
-    {
-    }
-
     public new ItemsRepeater Owner => (ItemsRepeater)base.Owner;
 
     protected override IReadOnlyList<AutomationPeer> GetChildrenCore()
@@ -21,18 +14,13 @@ public class ItemsRepeaterAutomationPeer : ControlAutomationPeer
         var childrenPeers = base.GetChildrenCore();
         var peerCount = childrenPeers.Count;
 
-        List<(int, AutomationPeer)> realizedPeers = new List<(int, AutomationPeer)>(peerCount);
+        var realizedPeers = new List<(int, AutomationPeer)>(peerCount);
 
-        for (int i = 0; i < peerCount; i++)
+        for (var i = 0; i < peerCount; i++)
         {
             var childPeer = childrenPeers[i];
-            if (GetElement((ControlAutomationPeer)childPeer, repeater) is { } c)
-            {
-                if (ItemsRepeater.GetVirtualizationInfo(c) is { } vi && vi.IsRealized)
-                {
-                    realizedPeers.Add((vi.Index, childPeer));
-                }
-            }
+            if (GetElement((ControlAutomationPeer)childPeer, repeater) is { } c && ItemsRepeater.GetVirtualizationInfo(c) is { IsRealized: true } vi)
+                realizedPeers.Add((vi.Index, childPeer));
         }
 
         realizedPeers.Sort((lhs, rhs) => lhs.Item1 < rhs.Item1 ? 1 : -1);
@@ -47,7 +35,7 @@ public class ItemsRepeaterAutomationPeer : ControlAutomationPeer
     {
         var childElement = childPeer.Owner;
         var parent = childElement.GetVisualParent();
-        while (parent != null && (parent as ItemsRepeater) != repeater)
+        while (parent != null && parent != repeater)
         {
             childElement = (Control)parent;
             parent = childElement.GetVisualParent();

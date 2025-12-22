@@ -1,8 +1,3 @@
-#pragma warning disable
-// Note this class has no documentation yet from Microsoft - disabling the warnings around
-// public APIs with no documentation
-using System;
-using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
@@ -17,135 +12,66 @@ public class RecyclePool
     public static readonly AttachedProperty<string> ReuseKeyProperty =
         AvaloniaProperty.RegisterAttached<RecyclePool, Control, string>("ReuseKey");
 
-    public static string GetReuseKey(Control element) =>
-        element.GetValue(ReuseKeyProperty);
+    public static string GetReuseKey(Control element) => element.GetValue(ReuseKeyProperty);
 
-    public static void SetReuseKey(Control element, string key) =>
-        element.SetValue(ReuseKeyProperty, key);
+    public static void SetReuseKey(Control element, string key) => element.SetValue(ReuseKeyProperty, key);
 
-    public void PutElement(Control element, string key) =>
-        PutElementCore(element, key, null /* owner */);
+    public void PutElement(Control element, string key) => PutElementCore(element, key, owner: null);
 
-    public void PutElement(Control element, string key, Control owner) =>
-        PutElementCore(element, key, owner);
+    public void PutElement(Control element, string key, Panel? owner) => PutElementCore(element, key, owner);
 
-    public Control TryGetElement(string key) =>
-        TryGetElementCore(key, null /*owner*/);
+    public Control? TryGetElement(string key) => TryGetElementCore(key, owner: null);
 
-    public Control TryGetElement(string key, Control owner) =>
-        TryGetElementCore(key, owner);
+    public Control? TryGetElement(string key, Panel? owner) => TryGetElementCore(key, owner);
 
-    protected virtual void PutElementCore(Control element, string key, Control owner)
+    protected virtual void PutElementCore(Control element, string key, Panel? owner)
     {
-        EnsureOwnerIsPanelOrNull(owner);
-
-        var elementInfo = new ElementInfo(element, owner as Panel);
+        var elementInfo = new ElementInfo(element, owner);
 
         if (_elements.TryGetValue(key, out var value))
-        {
             value.Add(elementInfo);
-        }
         else
-        {
-            var pool = new List<ElementInfo>();
-            pool.Add(elementInfo);
-            _elements.Add(key, pool);
-        }
+            _elements[key] = [elementInfo];
     }
-    
-    protected virtual Control TryGetElementCore(string key, Control owner)
+
+    protected virtual Control? TryGetElementCore(string key, Control? owner)
     {
-        if (_elements.TryGetValue(key, out var elements))
+        if (!_elements.TryGetValue(key, out var elements) || elements.Count <= 0)
+            return null;
+
+        var index = elements.FindIndex(x => x.Owner == owner || x.Owner is null);
+
+        if (index is not -1)
         {
-            if (elements.Count > 0)
-            {
-                ElementInfo elementInfo = default;
-                bool found = false;
-                for (int i = 0; i < elements.Count; i++)
-                {
-                    var x = elements[i];
-                    if (x.Owner == owner || x.Owner == null)
-                    {
-                        elementInfo = x;
-                        elements.RemoveAt(i);
-                        found = true;
-                        break;
-                    }
-                }
-
-                if (!found)
-                {
-                    elementInfo = elements[elements.Count - 1];
-                    elements.RemoveAt(elements.Count - 1);
-                }
-
-                EnsureOwnerIsPanelOrNull(owner);
-                if (elementInfo.Owner != null && elementInfo.Owner != owner)
-                {
-                    // Element is still under its parent. remove it from its parent.
-                    var panel = elementInfo.Owner as Panel;
-                    if (panel != null)
-                    {
-                        bool foundE = panel.Children.Remove(elementInfo.Element);
-                        if (!foundE)
-                            throw new Exception("ItemsRepeater's child not found in its Children collection.");
-                    }
-                }
-
-                return elementInfo.Element;
-            }
+            var e = elements[index];
+            _ = elements.Remove(e);
+            return e.Element;
         }
 
-        return null;
+        var elementInfo = elements[^1];
+        _ = elements.Remove(elementInfo);
+
+        // Element is still under its parent. remove it from its parent.
+        if (elementInfo.Owner is { Children: var children })
+        {
+            if (!children.Remove(elementInfo.Element))
+                throw new Exception($"{nameof(ItemsRepeater)}'s child not found in its Children collection.");
+        }
+
+        return elementInfo.Element;
     }
-
-    private void EnsureOwnerIsPanelOrNull(Control owner)
-    {
-        if (owner == null || (owner != null && owner is Panel))
-            return;
-
-        throw new InvalidOperationException("Owner must to be a Panel or null.");
-    }
-
 
     // RecyclePoolFactory.cpp
 
-    public static RecyclePool GetPoolInstance(IDataTemplate template)
-    {
-        if (s_PoolInstance == null)
-            s_PoolInstance = new Dictionary<IDataTemplate, RecyclePool>();
+    public static RecyclePool? TryGetPoolInstance(IDataTemplate template) => _PoolInstance.GetValueOrDefault(template);
 
-        if (s_PoolInstance.TryGetValue(template, out var rp))
-            return rp;
+    public static void SetPoolInstance(IDataTemplate template, RecyclePool pool) => _PoolInstance.Add(template, pool);
 
-        return null;
-    }
+    private record struct ElementInfo(Control Element, Panel? Owner);
 
-    public static void SetPoolInstance(IDataTemplate template, RecyclePool pool)
-    {
-        if (s_PoolInstance == null)
-            s_PoolInstance = new Dictionary<IDataTemplate, RecyclePool>();
-
-        s_PoolInstance.Add(template, pool);
-    }
-
-
-    private struct ElementInfo
-    {
-        public ElementInfo(Control element, Panel owner)
-        {
-            Element = element;
-            Owner = owner;
-        }
-
-        public Control Element;
-        public Panel Owner;
-    }
-
-    private readonly Dictionary<string, List<ElementInfo>> _elements = 
-        new Dictionary<string, List<ElementInfo>>();
+    private readonly Dictionary<string, List<ElementInfo>> _elements = [];
 
     // WinUI stores this as a DependencyProperty on DataTemplate (attached), but since
     // we use IDataTemplate, we need a cache not tied to the property system
-    private static Dictionary<IDataTemplate, RecyclePool> s_PoolInstance;
+    private static readonly Dictionary<IDataTemplate, RecyclePool> _PoolInstance = [];
 }
