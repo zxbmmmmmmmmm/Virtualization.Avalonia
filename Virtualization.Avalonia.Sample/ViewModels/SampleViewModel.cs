@@ -39,11 +39,20 @@ public partial class SampleViewModel : ObservableObject
         var textItems = new Item[all];
         for (var i = 0; i < all - 1; i++)
         {
+            var randomLines = Random.Shared.Next(1, 6);
+            var s = "";
+            for (var j = 0; j < randomLines; j++)
+            {
+                s += str[(Random.Shared.Next(str.Length / 5) * 5)..];
+                s += "\n";
+            }
+            s = s.TrimEnd('\n');
+
             textItems[i] = new()
             {
                 Value = i,
                 Name = $"Item {i}",
-                Description = str[(Random.Shared.Next(str.Length / 5) * 5)..]
+                Description = s
             };
         }
         //textItems[all - 1] = new()

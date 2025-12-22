@@ -1,8 +1,5 @@
 using Avalonia;
 using Avalonia.Controls;
-#if DEBUG && REPEATER_TRACE
-using Avalonia.Logging;
-#endif
 
 using Virtualization.Avalonia.Layouts;
 
@@ -61,7 +58,7 @@ internal class RepeaterLayoutContext(ItemsRepeater owner) : VirtualizingLayoutCo
 #if DEBUG && REPEATER_TRACE
         Logger.TryGet(LogEventLevel.Verbose, "Repeater")?.Log(this, $"RepeaterLayout - RecycleElement {owner?.GetElementIndex(element)}");
 #endif
-        owner?.ClearElementImpl(element);
+        owner?.ClearElement(element);
     }
 
     public override object? LayoutState
@@ -91,6 +88,7 @@ internal class RepeaterLayoutContext(ItemsRepeater owner) : VirtualizingLayoutCo
         }
     }
 
+    /// <inheritdoc cref="ItemsRepeater.LayoutOrigin" />
     public override Point LayoutOrigin
     {
         get => GetOwner()?.LayoutOrigin ?? default;

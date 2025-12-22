@@ -1,7 +1,6 @@
 using System.Collections;
 using System.Collections.Specialized;
 using System.Runtime.CompilerServices;
-using System.Security.Cryptography;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Automation.Peers;
@@ -73,22 +72,11 @@ public partial class ItemsRepeater : Panel
         {
             _isLayoutInProgress = true;
             ViewManager.PrunePinnedElements();
-            Rect extent;
-            Size desiredSize = default;
 
             var layoutContext = LayoutContext;
 
-            // Checking if we have a DataTemplate and it is empty
-            if (_isItemTemplateEmpty)
-            {
-                // Has no content, so we will draw nothing and request zero space
-                extent = new Rect(LayoutOrigin, default(Size));
-            }
-            else
-            {
-                desiredSize = layout.Measure(layoutContext, availableSize);
-                extent = new Rect(LayoutOrigin, desiredSize);
-            }
+            var desiredSize = layout.Measure(layoutContext, availableSize);
+            var extent = new Rect(LayoutOrigin, desiredSize);
 
             // Clear auto recycle candidate elements that have not been kept alive by layout - i.e layout did not
             // call GetElementAt(index).
@@ -102,7 +90,7 @@ public partial class ItemsRepeater : Panel
 #if DEBUG && REPEATER_TRACE
                     Logger.TryGet(LogEventLevel.Verbose, "Repeater")?.Log(this,"AutoClear - {Index}", virtInfo.Index);
 #endif
-                    ClearElementImpl(element);
+                    ClearElement(element);
                 }
             }
 
@@ -142,8 +130,7 @@ public partial class ItemsRepeater : Panel
                 var vi = GetVirtualizationInfo(element);
                 vi.KeepAlive = false;
 
-                if (vi.Owner == VirtualizationInfo.ElementOwner.ElementFactory ||
-                    vi.Owner == VirtualizationInfo.ElementOwner.PinnedPool)
+                if (vi.Owner is VirtualizationInfo.ElementOwner.ElementFactory or VirtualizationInfo.ElementOwner.PinnedPool)
                 {
                     // Toss it away. And arrange it with size 0 so that XYFocus won't use it.
                     element.Arrange(new Rect(
@@ -301,7 +288,7 @@ public partial class ItemsRepeater : Panel
         return ViewManager.GetElement(index, forceCreate, suppressAutoRecycle);
     }
 
-    internal void ClearElementImpl(Control element)
+    internal void ClearElement(Control element)
     {
         // Clearing an element due to a collection change
         // is stricter in that pinned elements will be forcibly
@@ -387,7 +374,7 @@ public partial class ItemsRepeater : Panel
                 // non-virtualizing layouts.
                 foreach (var item in Children)
                     if (GetVirtualizationInfo(item).IsRealized)
-                        ClearElementImpl(item);
+                        ClearElement(item);
 
                 Children.Clear();
             }
@@ -432,7 +419,7 @@ public partial class ItemsRepeater : Panel
                         // non-virtualizing layouts.
                         foreach (var child in Children)
                             if (GetVirtualizationInfo(child).IsRealized)
-                                ClearElementImpl(child);
+                                ClearElement(child);
 
                         break;
                     }
@@ -444,7 +431,6 @@ public partial class ItemsRepeater : Panel
             }
         }
 
-        _isItemTemplateEmpty = false;
         ItemTemplateShim = newValue as IElementFactory;
         if (ItemTemplateShim is null)
         {
@@ -470,21 +456,21 @@ public partial class ItemsRepeater : Panel
         ViewManager.OnLayoutChanging();
         TransitionManager.OnLayoutChanging();
 
-        if (oldValue is null & !isInitialSetup)
+        if (oldValue is null && !isInitialSetup)
             oldValue = GetDefaultLayout();
         newValue ??= GetDefaultLayout();    
 
-        if (oldValue != null)
+        if (oldValue is not null)
         {
             oldValue.UninitializeForContext(LayoutContext);
-            newValue.MeasureInvalidated -= InvalidateMeasureForLayout;
-            newValue.ArrangeInvalidated -= InvalidateArrangeForLayout;
+            oldValue.MeasureInvalidated -= InvalidateMeasureForLayout;
+            oldValue.ArrangeInvalidated -= InvalidateArrangeForLayout;
             _stackLayoutMeasureCounter = 0;
 
             // Walk through all the elements and make sure they are cleared
             foreach (var element in Children)
                 if (GetVirtualizationInfo(element).IsRealized)
-                    ClearElementImpl(element);
+                    ClearElement(element);
 
             LayoutState = null;
         }
@@ -601,11 +587,6 @@ public partial class ItemsRepeater : Panel
     // events. We keep these counters to detect out-of-sync unloaded events and take action to rectify.
     private int _loadedCounter;
     private int _unloadedCounter;
-
-    // Bug where DataTemplate with no content causes a crash.
-    // See: https://github.com/microsoft/microsoft-ui-xaml/issues/776
-    // Solution: Have flag that is only true when DataTemplate exists but it is empty.
-    private bool _isItemTemplateEmpty;
 
     // If no ItemCollectionTransitionProvider is explicitly provided, we'll retrieve a default one
     // from the Layout object. In that case, we'll want to know that we own that object and can

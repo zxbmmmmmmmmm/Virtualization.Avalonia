@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using Avalonia.Threading;
 
 namespace Virtualization.Avalonia;
@@ -65,28 +63,19 @@ internal static class BuildTreeScheduler
     }
 
     private static double _budgetInMs = 40;
-    private static readonly object _lockObj = new object();
 
     [ThreadStatic]
     private static QPCTimer _timer = new QPCTimer();
+
     [ThreadStatic]
-    private static readonly List<WorkInfo> _pendingWork = new List<WorkInfo>();
+    private static readonly List<WorkInfo> _pendingWork = [];
 
     private static bool _renderingToken;
 }
 
-struct WorkInfo
+internal struct WorkInfo(int priority, Action workFunc)
 {
-    public WorkInfo(int priority, Action workFunc)
-    {
-        _priority = priority;
-        _workFunc = workFunc;
-    }
+    public int Priority => priority;
 
-    public int Priority => _priority;
-
-    public void InvokeWorkFunc() => _workFunc.Invoke();
-
-    private int _priority;
-    private Action _workFunc;
+    public void InvokeWorkFunc() => workFunc.Invoke();
 }

@@ -125,6 +125,9 @@ public partial class ItemsRepeater : Panel
 
     internal Control? SuggestedAnchor => _viewportManager.SuggestedAnchor;
 
+    /// <summary>
+    /// 表示<see cref="ViewportManager.LayoutExtent"/>的左上角点相当于<see cref="ItemsRepeater"/>的位置
+    /// </summary>
     /// <remarks>
     /// The value of _layoutOrigin is expected to be set by the layout
     /// when it gets measured. It should not be used outside of measure.

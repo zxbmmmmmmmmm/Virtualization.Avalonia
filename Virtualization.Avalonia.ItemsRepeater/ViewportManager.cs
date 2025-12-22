@@ -63,6 +63,9 @@ internal class ViewportManager(ItemsRepeater owner)
         }
     }
 
+    /// <summary>
+    /// 指<see cref="ItemsRepeater.Layout"/>估计的内容区域矩形，用于显示滚动条
+    /// </summary>
     public Rect LayoutExtent => _layoutExtent;
 
     public Control? MadeAnchor { get; private set; }
@@ -208,6 +211,9 @@ internal class ViewportManager(ItemsRepeater owner)
         _scroller?.UnregisterAnchorCandidate(element);
     }
 
+    /// <summary>
+    /// call <see cref="EnsureScroller"/>
+    /// </summary>
     public void OnOwnerMeasuring()
     {
         // This is because of a bug that causes effective viewport to not 
@@ -412,7 +418,7 @@ internal class ViewportManager(ItemsRepeater owner)
             _layoutExtent = default;
         }
 
-        // We got a new viewport, we dont need to wait for layout updated anymore to 
+        // We got a new viewport, we don't need to wait for layout updated anymore to 
         // see if our request for a pending shift was handled.
         if (_layoutUpdatedRevoker)
         {
@@ -423,31 +429,33 @@ internal class ViewportManager(ItemsRepeater owner)
 
     private void EnsureScroller()
     {
-        if (!_ensuredScroller)
+        if (_ensuredScroller)
+            return;
+
+        ResetScrollers();
+
+        _scroller = owner.FindAncestorOfType<IScrollAnchorProvider>();
+
+        if (!_managingViewportDisabled)
         {
-            ResetScrollers();
-
-            _scroller = owner.FindAncestorOfType<IScrollAnchorProvider>();
-
-            if (!_managingViewportDisabled)
+            if (_scroller is null)
+                // We usually update the viewport in the post arrange handler. 
+                // But, since we don't have a scroller, let's do it now.
+                UpdateViewport(default);
+            else
             {
-                if (_scroller == null)
-                {
-                    // We usually update the viewport in the post arrange handler. 
-                    // But, since we don't have a scroller, let's do it now.
-                    UpdateViewport(default);
-                }
-                else
-                {
-                    _effectiveViewportChangedRevoker = true;
-                    owner.EffectiveViewportChanged += OnEffectiveViewportChanged;
-                }
+                _effectiveViewportChangedRevoker = true;
+                owner.EffectiveViewportChanged += OnEffectiveViewportChanged;
             }
-
-            _ensuredScroller = true;
         }
+
+        _ensuredScroller = true;
     }
 
+    /// <summary>
+    /// 更新VisibleWindow/Viewport，若x、y都大于10000则无效清零
+    /// </summary>
+    /// <param name="viewport">VisibleWindow</param>
     private void UpdateViewport(Rect viewport)
     {
 #if DEBUG && REPEATER_TRACE
@@ -494,20 +502,19 @@ internal class ViewportManager(ItemsRepeater owner)
     private static void ValidateCacheLength(double cacheLength)
     {
         if (cacheLength < 0 || double.IsInfinity(cacheLength) || double.IsNaN(cacheLength))
-            throw new ArgumentException("The maximum cache length must be equal or superior to zero.");
+            throw new ArgumentException("The maximum cache length must be greater or equal to zero.");
     }
 
     private void RegisterCacheBuildWork()
     {
-        if (owner.Layout != null && _cacheBuildAction == null)
+        if (owner.Layout is not null && _cacheBuildAction is null)
         {
-            // We capture 'owner' (a strong refernce on ItemsRepeater) to make sure ItemsRepeater is still around
+            // We capture 'owner' (a strong reference on ItemsRepeater) to make sure ItemsRepeater is still around
             // when the async action completes. By protecting ItemsRepeater, we also ensure that this instance
             // of ViewportManager (referenced by 'this' pointer) is valid because the lifetime of ItemsRepeater
             // and ViewportManager is the same (see ItemsRepeater::m_viewportManager).
             // We can't simply hold a strong reference on ViewportManager because it's not a COM object.
-            _cacheBuildAction = () => Dispatcher.UIThread.Post(OnCacheBuildActionCompleted,
-                DispatcherPriority.Background);
+            _cacheBuildAction = () => Dispatcher.UIThread.Post(OnCacheBuildActionCompleted, DispatcherPriority.Background);
 
             _cacheBuildAction.Invoke();
         }
@@ -516,16 +523,15 @@ internal class ViewportManager(ItemsRepeater owner)
     private void TryInvalidateMeasure()
     {
         // Don't invalidate measure if we have an invalid window.
-        if (_visibleWindow != default)
-        {
-            // We invalidate measure instead of just invalidating arrange because
-            // we don't invalidate measure in UpdateViewport if the view is changing to
-            // avoid layout cycles.
+        if (_visibleWindow == default)
+            return;
+        // We invalidate measure instead of just invalidating arrange because
+        // we don't invalidate measure in UpdateViewport if the view is changing to
+        // avoid layout cycles.
 #if DEBUG && REPEATER_TRACE
-            Logger.TryGet(LogEventLevel.Verbose, "Repeater")?.Log(this,"{Layout}: Invalidating measure due to viewport change", GetLayoutId());
+        Logger.TryGet(LogEventLevel.Verbose, "Repeater")?.Log(this,"{Layout}: Invalidating measure due to viewport change", GetLayoutId());
 #endif
-            owner.InvalidateMeasure();
-        }
+        owner.InvalidateMeasure();
     }
 
     private bool _ensuredScroller;
@@ -535,6 +541,7 @@ internal class ViewportManager(ItemsRepeater owner)
     private Action? _cacheBuildAction;
 
     private Rect _visibleWindow;
+    /// <inheritdoc cref="LayoutExtent"/>
     private Rect _layoutExtent;
     // This is the expected shift by the layout.
     private Point _expectedViewportShift;
@@ -544,7 +551,7 @@ internal class ViewportManager(ItemsRepeater owner)
     private Point _pendingViewportShift;
     // Unshiftable shift amount that this view manager can
     // handle on its own to fake it to the layout as if the shift
-    // actually happened. This can happen in cases where no scrollviewer
+    // actually happened. This can happen in cases where no scrollViewer
     // in the parent chain can scroll in the shift direction.
     private Point _unshiftableShift;
 
@@ -554,12 +561,22 @@ internal class ViewportManager(ItemsRepeater owner)
     private double _verticalCacheBufferPerSide;
 
     private bool _isBringIntoViewInProgress;
-    // For non-virtualizing layouts, we do not need to keep
-    // updating viewports and invalidating measure often. So when
-    // a non virtualizing layout is used, we stop doing all that work.
+    /// <summary>
+    /// 当是非虚拟化布局时，为true，表示禁用视口管理
+    /// </summary>
+    /// <remarks>
+    /// For non-virtualizing layouts, we do not need to keep
+    /// updating viewports and invalidating measure often. So when
+    /// a non virtualizing layout is used, we stop doing all that work.
+    /// </remarks>
     private bool _managingViewportDisabled;
-
+    /// <summary>
+    /// 表示是否已将 <see cref="OnLayoutUpdated"/> 注册到 <see cref="ItemsRepeater.LayoutUpdated"/>
+    /// </summary>
     private bool _layoutUpdatedRevoker;
+    /// <summary>
+    /// 表示是否已将 <see cref="OnEffectiveViewportChanged"/> 注册到 <see cref="ItemsRepeater.EffectiveViewportChanged"/>
+    /// </summary>
     private bool _effectiveViewportChangedRevoker;
     private bool _renderingToken;
 

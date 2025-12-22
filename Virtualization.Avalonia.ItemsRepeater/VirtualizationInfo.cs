@@ -1,4 +1,3 @@
-using System;
 using Avalonia;
 
 namespace Virtualization.Avalonia;
@@ -9,11 +8,11 @@ internal class VirtualizationInfo
 
     public bool IsPinned => _pinCounter > 0;
 
-    public bool IsHeldByLayout => Owner == ElementOwner.Layout;
+    public bool IsHeldByLayout => Owner is ElementOwner.Layout;
 
-    public bool IsRealized => IsHeldByLayout || Owner == ElementOwner.PinnedPool;
+    public bool IsRealized => IsHeldByLayout || Owner is ElementOwner.PinnedPool;
 
-    public bool IsInUniqueIdResetPool => Owner == ElementOwner.UniqueIdResetPool;
+    public bool IsInUniqueIdResetPool => Owner is ElementOwner.UniqueIdResetPool;
 
     public bool AutoRecycleCandidate { get; set; }
 
@@ -89,6 +88,7 @@ internal class VirtualizationInfo
         if (!IsRealized)
             throw new InvalidOperationException("You can't pin an unrealized element");
 
+        ++_pinCounter;
         return ++_pinCounter;
     }
 
@@ -100,7 +100,8 @@ internal class VirtualizationInfo
         if (!IsPinned)
             throw new InvalidOperationException("UnpinElement was called more often than PinElement");
 
-        return --_pinCounter;
+        --_pinCounter;
+        return _pinCounter;
     }
 
     internal void UpdateIndex(int newIndex)

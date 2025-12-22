@@ -2,12 +2,13 @@ using System.Collections.Specialized;
 using System.Diagnostics;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 
 namespace Virtualization.Avalonia;
 
-internal class ViewManager(ItemsRepeater ir)
+internal class ViewManager(ItemsRepeater owner)
 {
     // ItemsRepeater is not fully constructed yet (during ctor). Don't interact with it.
 
@@ -23,7 +24,7 @@ internal class ViewManager(ItemsRepeater ir)
         {
             // check if this is the anchor made through repeater in preparation 
             // for a bring into view.
-            if (ir.MadeAnchor is { } c)
+            if (owner.MadeAnchor is { } c)
             {
                 var virtInfo = ItemsRepeater.GetVirtualizationInfo(c);
                 if (virtInfo.Index == index)
@@ -85,7 +86,7 @@ internal class ViewManager(ItemsRepeater ir)
             ClearElementToElementFactory(element);
         }
 
-        //// Both First and Last indices need to be valid or default.
+        // Both First and Last indices need to be valid or default.
         Debug.Assert((_firstRealizedElementIndexHeldByLayout == FirstRealizedElementIndexDefault &&
             _lastRealizedElementIndexHeldByLayout == LastRealizedElementIndexDefault) ||
             (_firstRealizedElementIndexHeldByLayout != FirstRealizedElementIndexDefault && _lastRealizedElementIndexHeldByLayout != LastRealizedElementIndexDefault));
@@ -124,7 +125,7 @@ internal class ViewManager(ItemsRepeater ir)
     // Luckily when we create the items, we store whether we were the once setting the DataContext.
     internal void ClearElementToElementFactory(Control element)
     {
-        ir.OnElementClearing(element);
+        owner.OnElementClearing(element);
 
         var vi = ItemsRepeater.GetVirtualizationInfo(element);
         vi.MoveOwnershipToElementFactory();
@@ -135,12 +136,12 @@ internal class ViewManager(ItemsRepeater ir)
             element.DataContext = null;
         }
 
-        if (ir.ItemTemplateShim != null)
+        if (owner.ItemTemplateShim != null)
         {
             _elementFactoryRecycleArgs.Element = element;
-            _elementFactoryRecycleArgs.Parent = ir;
+            _elementFactoryRecycleArgs.Parent = owner;
 
-            ir.ItemTemplateShim.RecycleElement(_elementFactoryRecycleArgs);
+            owner.ItemTemplateShim.RecycleElement(_elementFactoryRecycleArgs);
 
             _elementFactoryRecycleArgs.Element = null!;
             _elementFactoryRecycleArgs.Parent = null!;
@@ -148,7 +149,7 @@ internal class ViewManager(ItemsRepeater ir)
         else
         {
             // No ItemTemplate to recycle to, remove the element from the children collection.
-            var children = ir.Children;
+            var children = owner.Children;
             var idx = children.IndexOf(element);
             children.RemoveAt(idx);
         }
@@ -200,7 +201,7 @@ internal class ViewManager(ItemsRepeater ir)
         var nextIndex = int.MaxValue;
         Control? nextElement = null;
         Control? previousElement = null;
-        var children = ir.Children;
+        var children = owner.Children;
         foreach (var child in children)
         {
             var virtInfo = ItemsRepeater.GetVirtualizationInfo(child);
@@ -257,12 +258,12 @@ internal class ViewManager(ItemsRepeater ir)
 
         // Go through pinned elements and make sure they still have
         // a reason to be pinned.
-        for (int i = 0; i < _pinnedPool.Count; i++)
+        for (var i = 0; i < _pinnedPool.Count; i++)
         {
             var ei = _pinnedPool[i];
             var vi = ei.VirtualizationInfo;
 
-            Debug.Assert(vi.Owner == VirtualizationInfo.ElementOwner.PinnedPool);
+            Debug.Assert(vi.Owner is VirtualizationInfo.ElementOwner.PinnedPool);
 
             if (!vi.IsPinned)
             {
@@ -280,30 +281,18 @@ internal class ViewManager(ItemsRepeater ir)
         var parent = element.GetVisualParent();
         var child = element;
 
-        while (parent != null)
+        while (parent is not null)
         {
-            if (parent is ItemsRepeater repeater)
-            {
-                var virtInfo = ItemsRepeater.GetVirtualizationInfo(child);
-                if (virtInfo.IsRealized)
-                {
-                    if (addPin)
-                    {
-                        virtInfo.AddPin();
-                    }
-                    else if (virtInfo.IsPinned)
-                    {
-                        if (virtInfo.RemovePin() == 0)
-                        {
-                            // ElementFactory is invoked during the measure pass.
-                            // We will clear the element then.
-                            repeater.InvalidateMeasure();
-                        }
-                    }
-                }
-            }
+            if (parent is ItemsRepeater repeater
+                && ItemsRepeater.GetVirtualizationInfo(child) is { IsRealized: true } virtInfo)
+                if (addPin)
+                    virtInfo.AddPin();
+                else if (virtInfo.IsPinned && virtInfo.RemovePin() is 0)
+                    // ElementFactory is invoked during the measure pass.
+                    // We will clear the element then.
+                    repeater.InvalidateMeasure();
 
-            child = (Control)parent;
+            child = (Control) parent;
             parent = child.GetVisualParent();
         }
     }
@@ -322,7 +311,7 @@ internal class ViewManager(ItemsRepeater ir)
                 if (newIndex <= _lastRealizedElementIndexHeldByLayout)
                 {
                     _lastRealizedElementIndexHeldByLayout += newCount;
-                    foreach (var element in ir.Children)
+                    foreach (var element in owner.Children)
                     {
                         var vi = ItemsRepeater.GetVirtualizationInfo(element);
                         var dataIndex = vi.Index;
@@ -387,7 +376,7 @@ internal class ViewManager(ItemsRepeater ir)
                 {
                     // countChange > 0 : countChange items were added
                     // countChange < 0 : -countChange  items were removed
-                    var children = ir.Children;
+                    var children = owner.Children;
                     foreach (var element in children)
                     {
                         var virtInfo = ItemsRepeater.GetVirtualizationInfo(element);
@@ -412,7 +401,7 @@ internal class ViewManager(ItemsRepeater ir)
             {
                 var oldStartIndex = args.OldStartingIndex;
                 var oldCount = args.OldItems!.Count;
-                var children = ir.Children;
+                var children = owner.Children;
                 foreach (var element in children)
                 {
                     var virtInfo = ItemsRepeater.GetVirtualizationInfo(element);
@@ -424,7 +413,7 @@ internal class ViewManager(ItemsRepeater ir)
                         dataIndex < oldStartIndex + oldCount)
                     {
                         // If we are doing the mapping, remove the element who's data was removed.
-                        ir.ClearElementImpl(element);
+                        owner.ClearElement(element);
                     }
                     else if (dataIndex >= (oldStartIndex + oldCount))
                     {
@@ -443,17 +432,17 @@ internal class ViewManager(ItemsRepeater ir)
                 // running layout, we dont have to clear all the elements again.
                 if (!_isDataSourceStableResetPending)
                 {
-                    if (ir.ItemsSourceView.HasKeyIndexMapping)
+                    if (owner.ItemsSourceView.HasKeyIndexMapping)
                         _isDataSourceStableResetPending = true;
 
                     // Walk through all the elements and make sure they are cleared, they will go into
                     // the stable id reset pool.
-                    var children = ir.Children;
+                    var children = owner.Children;
                     foreach (var element in children)
                         if (ItemsRepeater.GetVirtualizationInfo(element) is
                             { IsRealized: true, AutoRecycleCandidate: true })
                         {
-                            ir.ClearElementImpl(element);
+                            owner.ClearElement(element);
                         }
 
                 }
@@ -475,7 +464,7 @@ internal class ViewManager(ItemsRepeater ir)
 
     internal void OnLayoutChanging()
     {
-        if (ir.ItemsSourceView is { HasKeyIndexMapping: true })
+        if (owner.ItemsSourceView is { HasKeyIndexMapping: true })
         {
             _isDataSourceStableResetPending = true;
         }
@@ -523,7 +512,7 @@ internal class ViewManager(ItemsRepeater ir)
                       _lastRealizedElementIndexHeldByLayout != LastRealizedElementIndexDefault));
 
         Control? element = null;
-        foreach (var child in ir.Children)
+        foreach (var child in owner.Children)
         {
             if (ItemsRepeater.GetVirtualizationInfo(child) is not { IsHeldByLayout: true } virtInfo)
                 continue;
@@ -605,10 +594,10 @@ internal class ViewManager(ItemsRepeater ir)
     private Control GetElementFromElementFactory(int index)
     {
         // The view generator is the provider of last resort.
-        var data = ir.ItemsSourceView[index];
+        var data = owner.ItemsSourceView[index];
 
         Control? element = null;
-        var providedElementFactory = ir.ItemTemplateShim;
+        var providedElementFactory = owner.ItemTemplateShim;
 
         if (providedElementFactory == null)
         {
@@ -622,8 +611,8 @@ internal class ViewManager(ItemsRepeater ir)
                 if (providedElementFactory != null)
                     return providedElementFactory;
                 
-                ir.ItemTemplate = FuncDataTemplate.Default;
-                return ir.ItemTemplateShim;
+                owner.ItemTemplate = FuncDataTemplate.Default;
+                return owner.ItemTemplateShim;
             }
 
             var args = _elementFactoryGetArgs;
@@ -631,7 +620,7 @@ internal class ViewManager(ItemsRepeater ir)
             try
             {
                 args.Data = data;
-                args.Parent = ir;
+                args.Parent = owner;
                 args.Index = index;
 
                 element = GetElementFactory().GetElement(args);
@@ -655,7 +644,7 @@ internal class ViewManager(ItemsRepeater ir)
         virtInfo.MustClearDataContext = false;
 
         ContainerContentChangingEventArgs? cArgs = null;
-        var shouldPhase = ir.ShouldPhase;
+        var shouldPhase = owner.ShouldPhase;
 
         // NOTE: This code has been changed from WinUI in order to support our version of phased rendering
         if (data != element)
@@ -692,16 +681,16 @@ internal class ViewManager(ItemsRepeater ir)
             {
                 virtInfo.UpdatePhasingInfo(data);
                 cArgs = new ContainerContentChangingEventArgs(index, data, element, virtInfo, 0, _phaser);
-                ir.RaiseContainerContentChanging(cArgs);// index, data, element, virtInfo);
+                owner.RaiseContainerContentChanging(cArgs);// index, data, element, virtInfo);
             }
         }
 
         virtInfo.MoveOwnershipToLayoutFromElementFactory(index,
-            ir.ItemsSourceView.HasKeyIndexMapping ?
-            ir.ItemsSourceView.KeyFromIndex(index) : string.Empty);
+            owner.ItemsSourceView.HasKeyIndexMapping ?
+            owner.ItemsSourceView.KeyFromIndex(index) : string.Empty);
 
         // The view generator is the only provider that prepares the element.
-        var repeater = ir;
+        var repeater = owner;
 
         // Add the element to the children collection here before raising OnElementPrepared so 
         // that handlers can walk up the tree in case they want to find their IndexPath in the 
@@ -735,7 +724,7 @@ internal class ViewManager(ItemsRepeater ir)
 
     private bool ClearElementToAnimator(Control element, VirtualizationInfo virtInfo)
     {
-        bool cleared = ir.TransitionManager.ClearElement(element);
+        bool cleared = owner.TransitionManager.ClearElement(element);
         if (!cleared)
             return false;
         var clearedIndex = virtInfo.Index;
@@ -772,52 +761,37 @@ internal class ViewManager(ItemsRepeater ir)
 
     private void UpdateFocusedElement()
     {
-        var owner = ir;
-
-        var xamlRoot = TopLevel.GetTopLevel(owner);
-        Control? child = null;
         Control? focusedElement = null;
 
-        if (xamlRoot != null)
-        {
-            child = xamlRoot.FocusManager.GetFocusedElement() as Control;
-        }
-
-        if (child != null)
+        if (TopLevel.GetTopLevel(owner) is { FocusManager: { } focusManager }
+            && focusManager.GetFocusedElement() is Control child)
         {
             var parent = child.GetVisualParent();
-           
-            // Find out if the focused element belongs to one of our direct
-            // children.
-            while (parent != null)
+
+            // Find out if the focused element belongs to one of our direct children.
+            while (parent is not null)
             {
                 if (parent is ItemsRepeater repeater)
                 {
-                    if (repeater == owner &&
-                        ItemsRepeater.GetVirtualizationInfo(child).IsRealized)
+                    if (repeater == owner && ItemsRepeater.GetVirtualizationInfo(child).IsRealized)
                         focusedElement = child;
-
                     break;
                 }
 
-                child = (Control)parent;
+                child = (Control) parent;
                 parent = child.GetVisualParent();
             }
         }
 
-        // If the focused element has changed,
-        // we need to unpin the old one and pin the new one.
         if (_lastFocusedElement == focusedElement)
             return;
-        if (_lastFocusedElement != null)
-        {
+        // If the focused element has changed,
+        // we need to unpin the old one and pin the new one.
+        if (_lastFocusedElement is not null)
             UpdatePin(_lastFocusedElement, false /* addPin */);
-        }
 
-        if (focusedElement != null)
-        {
+        if (focusedElement is not null)
             UpdatePin(focusedElement, true /* addPin */);
-        }
 
         _lastFocusedElement = focusedElement;
     }
@@ -832,8 +806,8 @@ internal class ViewManager(ItemsRepeater ir)
         if (_gotFocus)
             return;
         _gotFocus = true;
-        ir.GotFocus += OnFocusChanged;
-        ir.LostFocus += OnFocusChanged;
+        owner.GotFocus += OnFocusChanged;
+        owner.LostFocus += OnFocusChanged;
     }
 
     private void UpdateElementIndex(Control element, VirtualizationInfo virtInfo, int index)
@@ -842,7 +816,7 @@ internal class ViewManager(ItemsRepeater ir)
         if (oldIndex != index)
         {
             virtInfo.UpdateIndex(index);
-            ir.OnElementIndexChanged(element, oldIndex, index);
+            owner.OnElementIndexChanged(element, oldIndex, index);
         }
     }
 
@@ -854,12 +828,12 @@ internal class ViewManager(ItemsRepeater ir)
 
 
     private readonly List<PinnedElementInfo> _pinnedPool = [];
-    private readonly UniqueIdElementPool _resetPool = new(ir);
+    private readonly UniqueIdElementPool _resetPool = new(owner);
 
     private Control? _lastFocusedElement;
     private bool _isDataSourceStableResetPending;
 
-    private Phaser _phaser = new(ir);
+    private Phaser _phaser = new(owner);
 
     // Cached generate/clear contexts to avoid cost of creation every time.
     private readonly ElementFactoryGetArgs _elementFactoryGetArgs = new();
